@@ -11,6 +11,7 @@ data LispVal = Atom String
              | String String
              | Char Char
              | Bool Bool
+             deriving Eq
 
 instance Show LispVal where show = showVal
 
@@ -21,6 +22,7 @@ data LispError = NumArgs Integer [LispVal]
                | NotFunction String String
                | UnboundVar String String
                | Default String
+               deriving Eq
 
 
 data LispErrorable a = Err LispError | Val a
@@ -52,6 +54,12 @@ reduceBinop op (Val x) (Val y) = Val (op x y)
 
 type LispOption = LispErrorable LispVal
 
+instance (Eq t) => Eq (LispErrorable t) where
+  (==) (Err _) (Val _) = False
+  (==) (Val _) (Err _) = False
+  (==) (Val a) (Val b) = a == b
+  (==) (Err a) (Err b) = a == b
+
 instance Show LispError where
   show (UnboundVar message varname) = message ++ ": " ++ varname
   show (BadSpecialForm message form) = message ++ ": " ++ show form
@@ -70,6 +78,7 @@ showVal (Int contents) = show contents
 showVal (Float contents) = show contents
 showVal (Bool True) = "True"
 showVal (Bool False) = "False"
+showVal (Char a) = ['\'', a, '\'']
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ showVal tail ++ ")"
 
@@ -78,10 +87,10 @@ unwordsList = unwords . map showVal
 
 eval :: LispVal -> LispOption
 eval val@(String _) = return val
-eval val@(Int _) = return val
-eval val@(Float _) = return val
-eval val@(Bool _) = return val
-eval (List [Atom "quote", val]) = return val
+eval val@(Int _) = Val val
+eval val@(Float _) = Val val
+eval val@(Bool _) = Val val
+eval (List [Atom "quote", val]) = Val val
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval a = Err $ BadSpecialForm "Unrecognized special form" a
 
