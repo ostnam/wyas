@@ -68,8 +68,8 @@ showVal (String contents) = "\"" ++ contents ++ "\""
 showVal (Atom name) = name
 showVal (Int contents) = show contents
 showVal (Float contents) = show contents
-showVal (Bool True) = "#t"
-showVal (Bool False) = "#f"
+showVal (Bool True) = "True"
+showVal (Bool False) = "False"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ showVal tail ++ ")"
 
