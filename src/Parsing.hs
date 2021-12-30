@@ -37,8 +37,8 @@ parseAtom = do first <- letter <|> symbol
                rest  <- many (letter <|> digit <|> symbol)
                let atom = first : rest
                return $ case atom of
-                 "#t" -> Bool True
-                 "#f" -> Bool False
+                 "True" -> Bool True
+                 "False" -> Bool False
                  _    -> Atom atom
 
 parseNumber :: Parser Values.LispVal
