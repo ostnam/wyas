@@ -25,22 +25,24 @@ arbitraryAdd [x] = True -- same
 arbitraryAdd ints = Values.numericBinop (+) (map Values.Int ints) == (Values.Val $ Values.Int (foldl1 (+) ints))
 
 main :: IO ()
-main = hspec $
+main = hspec $ do
   describe "Values" $ do
-  it "prints atoms" $ do
-    Values.showVal (Values.Atom "var_name") `shouldBe` "var_name"
-  it "prints strings" $ do
-    Values.showVal (Values.String "Hello!") `shouldBe` "\"Hello!\""
-  it "prints arbitrary strings" $ do
-    property showArbitraryLispValString
-  it "prints arbitrary ints" $ do
-    property showArbitraryLispValInt
-  it "prints arbitrary floats" $ do
-    property showArbitraryLispValFloat
-  it "prints booleans" $ do
-    Values.showVal (Values.Bool True) `shouldBe` "True"
-    Values.showVal (Values.Bool False) `shouldBe` "False"
-  it "adds ints" $ do
-    property arbitraryAdd
+    describe "show LispVal" $ do
+      it "prints atoms" $ do
+        Values.showVal (Values.Atom "var_name") `shouldBe` "var_name"
+      it "prints strings" $ do
+        Values.showVal (Values.String "Hello!") `shouldBe` "\"Hello!\""
+      it "prints arbitrary strings" $ do
+        property showArbitraryLispValString
+      it "prints arbitrary ints" $ do
+        property showArbitraryLispValInt
+      it "prints arbitrary floats" $ do
+        property showArbitraryLispValFloat
+      it "prints booleans" $ do
+        Values.showVal (Values.Bool True) `shouldBe` "True"
+        Values.showVal (Values.Bool False) `shouldBe` "False"
+    describe "binaryop" $ do
+      it "adds ints" $ do
+        property arbitraryAdd
 
 
