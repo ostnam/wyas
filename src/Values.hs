@@ -1,7 +1,7 @@
 module Values (module Values) where
 
 import           Text.ParserCombinators.Parsec hiding (spaces)
-import Text.Read (readMaybe)
+import           Text.Read                     (readMaybe)
 
 data LispVal = Atom String
              | List [LispVal]
