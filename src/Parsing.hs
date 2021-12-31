@@ -1,17 +1,41 @@
 module Parsing where
 
-import           Control.Monad.Error
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
 import           Values
-
-symbol :: Parser Char
-symbol = oneOf "!$%|*+-/!<=?>@^_~#"
 
 readExpr :: String -> Values.LispOption
 readExpr input = case parse parseExpr "lisp" input of
   Left err  -> Err $ Parser err
   Right val -> return val
+-- This is the function to call to parse any string to a LispOption
+
+parseExpr :: Parser Values.LispVal
+parseExpr =  parseAtom
+         <|> parseString
+         <|> parseNumber
+         <|> parseQuoted
+         <|> do char '('
+                x <- try parseList <|> parseDottedList
+                char ')'
+                return x
+-- This is the top level parser of LispVals
+
+parseAtom :: Parser Values.LispVal
+parseAtom = do first <- letter <|> symbol
+               rest  <- many (letter <|> digit <|> atomSymbol)
+               let atom = first : rest
+               return $ case atom of
+                 "True"  -> Bool True
+                 "False" -> Bool False
+                 _       -> Atom atom
+
+atomSymbol :: Parser Char
+atomSymbol = oneOf "_"
+-- Parser for every non-letter or digit valid atom symbol
+
+symbol :: Parser Char
+symbol = oneOf "!$%|*+-/!<=?>@^_~#"
 
 spaces :: Parser ()
 spaces = skipMany1 space
@@ -28,18 +52,11 @@ parseString = do
          <|> oneOf "\\\""
          <|> oneOf "\t"
          <|> oneOf "\n"
-         <|> oneOf "\\")
+         <|> oneOf "\\"
+         <|> letter
+         <|> digit)
   char '"'
   return $ String x
-
-parseAtom :: Parser Values.LispVal
-parseAtom = do first <- letter <|> symbol
-               rest  <- many (letter <|> digit <|> symbol)
-               let atom = first : rest
-               return $ case atom of
-                 "True" -> Bool True
-                 "False" -> Bool False
-                 _    -> Atom atom
 
 parseNumber :: Parser Values.LispVal
 parseNumber =  try parseFloat
@@ -47,9 +64,9 @@ parseNumber =  try parseFloat
 
 parseFloat :: Parser Values.LispVal
 parseFloat = do
-  int <- many1 (oneOf "0123456789")
+  int <- many1 digit
   char '.'
-  decimal <- many1 (oneOf "0123456789")
+  decimal <- many1 digit
   return $ Float (read (int ++ "." ++ decimal))
 
 parseInt :: Parser Values.LispVal
@@ -57,21 +74,11 @@ parseInt = do
   first <- many1 digit
   return $ Int (read first :: Integer)
 
-parseExpr :: Parser Values.LispVal
-parseExpr =  parseAtom
-         <|> parseString
-         <|> parseNumber
-         <|> parseQuoted
-         <|> do char '('
-                x <- try parseList <|> parseDottedList
-                char ')'
-                return x
-
 parseValues :: Parser Values.LispVal
 parseValues = Values.List <$> sepBy parseExpr spaces
 
 parseList :: Parser LispVal
-parseList = fmap List $ sepBy parseExpr spaces
+parseList = List <$> sepBy parseExpr spaces
 
 parseDottedList :: Parser Values.LispVal
 parseDottedList = do

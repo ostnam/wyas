@@ -12,8 +12,23 @@ data LispVal = Atom String
              | Char Char
              | Bool Bool
              deriving Eq
+-- This is the datatype representing every basic datatype.
 
 instance Show LispVal where show = showVal
+
+showVal :: LispVal -> String
+showVal (String contents) = "\"" ++ contents ++ "\""
+showVal (Atom name) = name
+showVal (Int contents) = show contents
+showVal (Float contents) = show contents
+showVal (Bool True) = "True"
+showVal (Bool False) = "False"
+showVal (Char a) = ['\'', a, '\'']
+showVal (List contents) = "(" ++ unwordsList contents ++ ")"
+showVal (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ showVal tail ++ ")"
+
+unwordsList :: [LispVal] -> String
+unwordsList = unwords . map showVal
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -24,9 +39,25 @@ data LispError = NumArgs Integer [LispVal]
                | Default String
                deriving Eq
 
+instance Show LispError where
+  show (UnboundVar message varname) = message ++ ": " ++ varname
+  show (BadSpecialForm message form) = message ++ ": " ++ show form
+  show (NotFunction message func) = message ++ ": " ++ show func
+  show (NumArgs expected found) = "Expected " ++ show expected
+                               ++ " args: found values " ++ unwordsList found
+  show (TypeMismatch expected found) = "Invalid type: expected " ++ expected
+                                    ++ expected ++ ", found " ++ show found
+  show (Parser parseErr) = "Parse error at " ++ show parseErr
+  show (Default string) = "Error: " ++ show string
 
 data LispErrorable a = Err LispError | Val a
   deriving Show
+
+instance (Eq t) => Eq (LispErrorable t) where
+  (==) (Err _) (Val _) = False
+  (==) (Val _) (Err _) = False
+  (==) (Val a) (Val b) = a == b
+  (==) (Err a) (Err b) = a == b
 
 instance Functor LispErrorable where
   fmap f (Val a) = Val (f a)
@@ -43,47 +74,8 @@ instance Monad LispErrorable where
   Val a >>= f = f a
   return      = Val
 
-
-reduceBinop :: (a -> a -> a)
-            -> LispErrorable a
-            -> LispErrorable a
-            -> LispErrorable a
-reduceBinop _ x@(Err _) _      = x
-reduceBinop _ _ x@(Err _)      = x
-reduceBinop op (Val x) (Val y) = Val (op x y)
-
 type LispOption = LispErrorable LispVal
-
-instance (Eq t) => Eq (LispErrorable t) where
-  (==) (Err _) (Val _) = False
-  (==) (Val _) (Err _) = False
-  (==) (Val a) (Val b) = a == b
-  (==) (Err a) (Err b) = a == b
-
-instance Show LispError where
-  show (UnboundVar message varname) = message ++ ": " ++ varname
-  show (BadSpecialForm message form) = message ++ ": " ++ show form
-  show (NotFunction message func) = message ++ ": " ++ show func
-  show (NumArgs expected found) = "Expected " ++ show expected
-                               ++ " args: found values " ++ unwordsList found
-  show (TypeMismatch expected found) = "Invalid type: expected " ++ expected
-                                    ++ expected ++ ", found " ++ show found
-  show (Parser parseErr) = "Parse error at " ++ show parseErr
-  show (Default string) = "Error: " ++ show string
-
-showVal :: LispVal -> String
-showVal (String contents) = "\"" ++ contents ++ "\""
-showVal (Atom name) = name
-showVal (Int contents) = show contents
-showVal (Float contents) = show contents
-showVal (Bool True) = "True"
-showVal (Bool False) = "False"
-showVal (Char a) = ['\'', a, '\'']
-showVal (List contents) = "(" ++ unwordsList contents ++ ")"
-showVal (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ showVal tail ++ ")"
-
-unwordsList :: [LispVal] -> String
-unwordsList = unwords . map showVal
+-- This is the case of the LispErrorable type applied to LispVals
 
 eval :: LispVal -> LispOption
 eval val@(String _) = return val
@@ -123,6 +115,13 @@ foldBinopLispOption :: (a -> a -> a)
                     -> LispErrorable a
 foldBinopLispOption op = foldl1 (reduceBinop op)
 
+reduceBinop :: (a -> a -> a)
+            -> LispErrorable a
+            -> LispErrorable a
+            -> LispErrorable a
+reduceBinop _ x@(Err _) _      = x
+reduceBinop _ _ x@(Err _)      = x
+reduceBinop op (Val x) (Val y) = Val (op x y)
 
 unpackNums :: LispVal -> LispErrorable Integer
 unpackNums num = case readMaybe (show num) :: Maybe Integer of
