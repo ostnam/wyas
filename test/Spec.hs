@@ -44,5 +44,9 @@ main = hspec $ do
     describe "binaryop" $ do
       it "adds ints" $ do
         property arbitraryAdd
+  describe "Parsing" $ do
+    it "parses booleans" $ do
+        Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)
+        Parsing.readExpr "False" `shouldBe` Values.Val (Values.Bool False)
 
 
