@@ -2,6 +2,8 @@ import Test.Hspec
 import Test.QuickCheck
 import Control.Exception (evaluate)
 
+import Text.Printf
+
 import qualified Parsing
 import qualified Values
 
@@ -23,6 +25,13 @@ arbitraryAdd :: [Integer] -> Bool
 arbitraryAdd []   = True -- avoid this QuickCheck case which is caught upstream
 arbitraryAdd [x] = True -- same
 arbitraryAdd ints = Values.numericBinop (+) (map Values.Int ints) == (Values.Val $ Values.Int (foldl1 (+) ints))
+
+arbitraryIntParse :: Integer -> Bool
+arbitraryIntParse i = Parsing.readExpr (show i) == Values.Val (Values.Int i)
+
+arbitraryFloatParse :: Float -> Bool
+arbitraryFloatParse f = Parsing.readExpr strF == Values.Val (Values.Float f)
+  where strF = printf "%f" f
 
 main :: IO ()
 main = hspec $ do
@@ -46,7 +55,12 @@ main = hspec $ do
         property arbitraryAdd
   describe "Parsing" $ do
     it "parses booleans" $ do
-        Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)
-        Parsing.readExpr "False" `shouldBe` Values.Val (Values.Bool False)
-
+      Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)
+      Parsing.readExpr "False" `shouldBe` Values.Val (Values.Bool False)
+    it "parses strings" $ do
+      Parsing.readExpr "\"hello\"" `shouldBe` Values.Val (Values.String "hello")
+    it "parses ints" $ do
+      property arbitraryIntParse
+    it "parses floats" $ do
+      property arbitraryFloatParse
 

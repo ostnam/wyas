@@ -11,9 +11,9 @@ readExpr input = case parse parseExpr "lisp" input of
 -- This is the function to call to parse any string to a LispOption
 
 parseExpr :: Parser Values.LispVal
-parseExpr =  parseAtom
+parseExpr =  parseNumber
+         <|> parseAtom
          <|> parseString
-         <|> parseNumber
          <|> parseQuoted
          <|> do char '('
                 x <- try parseList <|> parseDottedList
@@ -49,18 +49,26 @@ parseString :: Parser Values.LispVal
 parseString = do
   char '"'
   x <- many (noneOf "\""
-         <|> oneOf "\\\""
-         <|> oneOf "\t"
-         <|> oneOf "\n"
-         <|> oneOf "\\"
          <|> letter
          <|> digit)
   char '"'
   return $ String x
 
 parseNumber :: Parser Values.LispVal
-parseNumber =  try parseFloat
+parseNumber =  try parseNegFloat
+           <|> try parseNegInt
+           <|> try parseFloat
            <|> parseInt
+
+parseNegFloat :: Parser Values.LispVal
+parseNegFloat = do
+  char '-'
+  Values.Float . (\(Values.Float a) -> -a) <$> parseFloat
+
+parseNegInt :: Parser Values.LispVal
+parseNegInt = do
+  char '-'
+  Values.Int . (\(Values.Int a) -> -a) <$> parseInt
 
 parseFloat :: Parser Values.LispVal
 parseFloat = do
