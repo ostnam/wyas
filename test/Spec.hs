@@ -24,7 +24,19 @@ showArbitraryLispValChar a = Values.showVal (Values.Char a) == ['\'', a, '\'']
 arbitraryAdd :: [Integer] -> Bool
 arbitraryAdd []   = True -- avoid this QuickCheck case which is caught upstream
 arbitraryAdd [x] = True -- same
-arbitraryAdd ints = Values.numericBinop (+) (map Values.Int ints) == (Values.Val $ Values.Int (foldl1 (+) ints))
+arbitraryAdd ints = Values.polymorphicNumBinop Values.lispAddition (Values.Val . Values.Int <$> ints) == Values.Val (Values.Int (sum ints))
+
+arbitraryAddFloats :: [Float] -> Bool
+arbitraryAddFloats []   = True -- avoid this QuickCheck case which is caught upstream
+arbitraryAddFloats [x] = True -- same
+arbitraryAddFloats floats = Values.polymorphicNumBinop Values.lispAddition (Values.Val . Values.Float <$> floats) == Values.Val (Values.Float (sum floats))
+
+arbitraryAddsIntsAndFloats :: [Integer] -> [Float] -> Bool
+arbitraryAddsIntsAndFloats [] []  = True
+arbitraryAddsIntsAndFloats a [] = True
+arbitraryAddsIntsAndFloats [] a = True
+arbitraryAddsIntsAndFloats is fs  = Values.polymorphicNumBinop Values.lispAddition lispValues == Values.Val (Values.Float $ sum $ (fromInteger <$> is) <> fs)
+  where lispValues = Values.Val <$> (Values.Float <$> fs) <> (Values.Int <$> is)
 
 arbitraryIntParse :: Integer -> Bool
 arbitraryIntParse i = Parsing.readExpr (show i) == Values.Val (Values.Int i)
@@ -53,6 +65,8 @@ main = hspec $ do
     describe "binaryop" $ do
       it "adds ints" $ do
         property arbitraryAdd
+      it "adds floats" $ do
+        property arbitraryAddFloats
   describe "Parsing" $ do
     it "parses booleans" $ do
       Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)
@@ -63,4 +77,8 @@ main = hspec $ do
       property arbitraryIntParse
     it "parses floats" $ do
       property arbitraryFloatParse
+    it "parses atoms" $ do
+      Parsing.readExpr "atom" `shouldBe` Values.Val (Values.Atom "atom")
+    it "parses lists" $ do
+      Parsing.readExpr "(+ 3 2 \"str\")"  `shouldBe` Values.Val (Values.List [Values.Atom "+", Values.Int 3, Values.Int 2, Values.String "str"])
 

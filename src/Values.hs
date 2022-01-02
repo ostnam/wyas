@@ -1,4 +1,4 @@
-module Values (module Values) where
+module Values where
 
 import           Text.ParserCombinators.Parsec hiding (spaces)
 import           Text.Read                     (readMaybe)
@@ -30,10 +30,10 @@ showVal (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ showVal tail 
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
 
-data LispError = NumArgs Integer [LispVal]
-               | TypeMismatch String LispVal
+data LispError = NumArgs Integer [LispOption]
+               | TypeMismatch String LispOption
                | Parser ParseError
-               | BadSpecialForm String LispVal
+               | BadSpecialForm String LispOption
                | NotFunction String String
                | UnboundVar String String
                | Default String
@@ -44,7 +44,8 @@ instance Show LispError where
   show (BadSpecialForm message form) = message ++ ": " ++ show form
   show (NotFunction message func) = message ++ ": " ++ show func
   show (NumArgs expected found) = "Expected " ++ show expected
-                               ++ " args: found values " ++ unwordsList found
+                               ++ " args: found values " ++ unwords (show <$> found)
+
   show (TypeMismatch expected found) = "Invalid type: expected " ++ expected
                                     ++ expected ++ ", found " ++ show found
   show (Parser parseErr) = "Parse error at " ++ show parseErr
@@ -61,7 +62,7 @@ instance (Eq t) => Eq (LispErrorable t) where
 
 instance Functor LispErrorable where
   fmap f (Val a) = Val (f a)
-  fmap f (Err a) = Err a
+  fmap f e@(Err a) = Err a
 
 instance Applicative LispErrorable where
   pure a = Val a
@@ -77,53 +78,68 @@ instance Monad LispErrorable where
 type LispOption = LispErrorable LispVal
 -- This is the case of the LispErrorable type applied to LispVals
 
-eval :: LispVal -> LispOption
-eval val@(String _) = return val
-eval val@(Int _) = Val val
-eval val@(Float _) = Val val
-eval val@(Bool _) = Val val
-eval (List [Atom "quote", val]) = Val val
-eval (List (Atom func : args)) = mapM eval args >>= apply func
-eval a = Err $ BadSpecialForm "Unrecognized special form" a
+eval :: LispOption -> LispOption
+eval (Err a) = Err a
+eval (Val (List [Atom "quote", val])) = Val val
+eval (Val (List (Atom func : args))) = apply func $ eval . Val <$> args
+eval (Val val) = Val val
 
-apply :: String -> [LispVal] -> LispOption
+apply :: String -> [LispOption] -> LispOption
 apply func args =
   case lookup func primitives of
     Nothing    -> Err $ NotFunction "Unrecognized primitive function: "  func
     Just func' -> func' args
 
-primitives :: [(String, [LispVal] -> LispOption)]
-primitives = [("+", numericBinop (+)),
-              ("-", numericBinop (-)),
-              ("*", numericBinop (*)),
-              ("/", numericBinop div),
-              ("mod", numericBinop mod),
-              ("quotient", numericBinop quot),
-              ("remainder", numericBinop rem)]
+primitives :: [(String, [LispOption] -> LispOption)]
+primitives = [("+", polymorphicNumBinop lispAddition),
+              ("-", polymorphicNumBinop lispSubstraction),
+              ("*", polymorphicNumBinop lispMultiplication),
+              ("/", polymorphicNumBinop lispDivision),
+              ("mod", polymorphicNumBinop lispModulus),
+              ("quotient", polymorphicNumBinop lispQuotient),
+              ("remainder", polymorphicNumBinop lispRemainder)]
 
-numericBinop :: (Integer -> Integer -> Integer)
-             -> [LispVal]
-             -> LispOption
-numericBinop op singleVal@[_] = Err $ NumArgs 2 singleVal
-numericBinop op params =
-  case foldBinopLispOption op (unpackNums <$> params) of
+lispRemainder :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
+lispRemainder = error "not implemented"
+
+lispQuotient :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
+lispQuotient = error "not implemented"
+
+lispModulus :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
+lispModulus = error "not implemented"
+
+lispDivision :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
+lispDivision = error "not implemented"
+
+lispMultiplication :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
+lispMultiplication = error "not implemented"
+
+lispSubstraction :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
+lispSubstraction = error "not implemented"
+
+polymorphicNumBinop :: (LispErrorable (Either Integer Float) ->
+                        LispErrorable (Either Integer Float) ->
+                        LispErrorable (Either Integer Float))
+                    -> [LispOption]
+                    -> LispOption
+polymorphicNumBinop op singleVal@[Val a] = Err $ NumArgs 2 [Val a]
+polymorphicNumBinop op vals =
+  case foldl1 op (toPolymorphicNum <$> vals) of
     Err a -> Err a
-    Val a -> Val $ Int a
+    Val (Left a)  -> Val $ Int a
+    Val (Right a) -> Val $ Float a
 
-foldBinopLispOption :: (a -> a -> a)
-                    -> [LispErrorable a]
-                    -> LispErrorable a
-foldBinopLispOption op = foldl1 (reduceBinop op)
+lispAddition :: LispErrorable (Either Integer Float)
+        -> LispErrorable (Either Integer Float)
+        -> LispErrorable (Either Integer Float)
+lispAddition a@(Err _) _ = a
+lispAddition _ a@(Err _) = a
+lispAddition (Val (Left a)) (Val (Left b)) = Val $ Left (a + b)
+lispAddition (Val (Right a)) (Val (Right b)) = Val $ Right (a + b)
+lispAddition (Val (Left a)) (Val (Right b)) = Val $ Right (fromInteger a + b)
+lispAddition (Val (Right a)) (Val (Left b)) = Val $ Right (a + fromInteger b)
 
-reduceBinop :: (a -> a -> a)
-            -> LispErrorable a
-            -> LispErrorable a
-            -> LispErrorable a
-reduceBinop _ x@(Err _) _      = x
-reduceBinop _ _ x@(Err _)      = x
-reduceBinop op (Val x) (Val y) = Val (op x y)
-
-unpackNums :: LispVal -> LispErrorable Integer
-unpackNums num = case readMaybe (show num) :: Maybe Integer of
-                   Nothing -> Err $ Default $ "Error: couldn't parse " ++ show num ++ " to a number."
-                   Just i  -> Val i
+toPolymorphicNum :: LispOption -> LispErrorable (Either Integer Float)
+toPolymorphicNum (Val (Int a)) = Val $ Left a
+toPolymorphicNum (Val (Float a)) = Val $ Right a
+toPolymorphicNum a = Err $ TypeMismatch ("Couldn't apply a numerical function to" ++ show a ++ ", as it isn't a numerical value.") a
