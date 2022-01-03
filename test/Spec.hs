@@ -3,6 +3,7 @@ import Test.QuickCheck
 import Control.Exception (evaluate)
 
 import Text.Printf
+import Data.Fixed (mod')
 
 import qualified Parsing
 import qualified Values
@@ -30,6 +31,19 @@ arbitraryAddFloats :: [Float] -> Bool
 arbitraryAddFloats []   = True -- avoid this QuickCheck case which is caught upstream
 arbitraryAddFloats [x] = True -- same
 arbitraryAddFloats floats = Values.polymorphicNumBinop Values.lispAddition (Values.Val . Values.Float <$> floats) == Values.Val (Values.Float (sum floats))
+
+arbitraryRemIntsAndFloats :: [Integer] -> [Float] -> Bool
+arbitraryRemIntsAndFloats [] []  = True
+arbitraryRemIntsAndFloats a [] = True
+arbitraryRemIntsAndFloats [] a = True
+arbitraryRemIntsAndFloats is fs  = case elem 0.0 joined of
+                                     True  -> case Values.polymorphicNumBinop Values.lispRemainder lispValues of
+                                                (Values.Err (Values.Numerical _ _)) -> True
+                                                _                                 -> False
+                                     False -> Values.polymorphicNumBinop Values.lispRemainder lispValues == 
+                                                Values.Val (Values.Float $ foldl1 mod' joined)
+  where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
+        joined     = (fromIntegral <$> is) <> fs
 
 arbitraryAddsIntsAndFloats :: [Integer] -> [Float] -> Bool
 arbitraryAddsIntsAndFloats [] []  = True
@@ -67,6 +81,10 @@ main = hspec $ do
         property arbitraryAdd
       it "adds floats" $ do
         property arbitraryAddFloats
+      it "adds ints and floats together" $ do
+        property arbitraryAddsIntsAndFloats
+      it "rems ints and floats together" $ do
+        property arbitraryRemIntsAndFloats
   describe "Parsing" $ do
     it "parses booleans" $ do
       Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)

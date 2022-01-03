@@ -2,6 +2,7 @@ module Values where
 
 import           Text.ParserCombinators.Parsec hiding (spaces)
 import           Text.Read                     (readMaybe)
+import           Data.Fixed (mod')
 
 data LispVal = Atom String
              | List [LispVal]
@@ -37,6 +38,7 @@ data LispError = NumArgs Integer [LispOption]
                | NotFunction String String
                | UnboundVar String String
                | Default String
+               | Numerical String [LispOption]
                deriving Eq
 
 instance Show LispError where
@@ -78,6 +80,7 @@ instance Monad LispErrorable where
 type LispOption = LispErrorable LispVal
 -- This is the case of the LispErrorable type applied to LispVals
 
+
 eval :: LispOption -> LispOption
 eval (Err a) = Err a
 eval (Val (List [Atom "quote", val])) = Val val
@@ -90,6 +93,7 @@ apply func args =
     Nothing    -> Err $ NotFunction "Unrecognized primitive function: "  func
     Just func' -> func' args
 
+
 primitives :: [(String, [LispOption] -> LispOption)]
 primitives = [("+", polymorphicNumBinop lispAddition),
               ("-", polymorphicNumBinop lispSubstraction),
@@ -99,27 +103,9 @@ primitives = [("+", polymorphicNumBinop lispAddition),
               ("quotient", polymorphicNumBinop lispQuotient),
               ("remainder", polymorphicNumBinop lispRemainder)]
 
-lispRemainder :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
-lispRemainder = error "not implemented"
-
-lispQuotient :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
-lispQuotient = error "not implemented"
-
-lispModulus :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
-lispModulus = error "not implemented"
-
-lispDivision :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
-lispDivision = error "not implemented"
-
-lispMultiplication :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
-lispMultiplication = error "not implemented"
-
-lispSubstraction :: LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float) -> LispErrorable (Either Integer Float)
-lispSubstraction = error "not implemented"
-
-polymorphicNumBinop :: (LispErrorable (Either Integer Float) ->
-                        LispErrorable (Either Integer Float) ->
-                        LispErrorable (Either Integer Float))
+polymorphicNumBinop :: (LispErrorable LispPolymorphicNum ->
+                        LispErrorable LispPolymorphicNum ->
+                        LispErrorable LispPolymorphicNum)
                     -> [LispOption]
                     -> LispOption
 polymorphicNumBinop op singleVal@[Val a] = Err $ NumArgs 2 [Val a]
@@ -129,9 +115,14 @@ polymorphicNumBinop op vals =
     Val (Left a)  -> Val $ Int a
     Val (Right a) -> Val $ Float a
 
-lispAddition :: LispErrorable (Either Integer Float)
-        -> LispErrorable (Either Integer Float)
-        -> LispErrorable (Either Integer Float)
+toPolymorphicNum :: LispOption -> LispErrorable LispPolymorphicNum
+toPolymorphicNum (Val (Int a)) = Val $ Left a
+toPolymorphicNum (Val (Float a)) = Val $ Right a
+toPolymorphicNum a = Err $ TypeMismatch ("Couldn't apply a numerical function to" ++ show a ++ ", as it isn't a numerical value.") a
+
+lispAddition :: LispErrorable LispPolymorphicNum
+        -> LispErrorable LispPolymorphicNum
+        -> LispErrorable LispPolymorphicNum
 lispAddition a@(Err _) _ = a
 lispAddition _ a@(Err _) = a
 lispAddition (Val (Left a)) (Val (Left b)) = Val $ Left (a + b)
@@ -139,7 +130,33 @@ lispAddition (Val (Right a)) (Val (Right b)) = Val $ Right (a + b)
 lispAddition (Val (Left a)) (Val (Right b)) = Val $ Right (fromInteger a + b)
 lispAddition (Val (Right a)) (Val (Left b)) = Val $ Right (a + fromInteger b)
 
-toPolymorphicNum :: LispOption -> LispErrorable (Either Integer Float)
-toPolymorphicNum (Val (Int a)) = Val $ Left a
-toPolymorphicNum (Val (Float a)) = Val $ Right a
-toPolymorphicNum a = Err $ TypeMismatch ("Couldn't apply a numerical function to" ++ show a ++ ", as it isn't a numerical value.") a
+lispMultiplication :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispMultiplication = error "not implemented"
+
+lispRemainder :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispRemainder a@(Err _) _ = a
+lispRemainder _ a@(Err _) = a
+lispRemainder (Val a) (Val (Left 0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Int 0]
+lispRemainder (Val a) (Val (Right 0.0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Float 0]
+lispRemainder (Val (Left a)) (Val (Left b)) = Val $ Left (rem a b)
+lispRemainder (Val (Right a)) (Val (Right b)) = Val $ Right (mod' a b)
+lispRemainder (Val (Left a)) (Val (Right b)) = Val $ Right (mod' (fromIntegral a) b)
+lispRemainder (Val (Right a)) (Val (Left b)) = Val $ Right (mod' a $ fromIntegral b)
+
+lispQuotient :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispQuotient = error "not implemented"
+
+lispModulus :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispModulus = error "not implemented"
+
+lispDivision :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispDivision = error "not implemented"
+
+lispSubstraction :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispSubstraction = error "not implemented"
+
+type LispPolymorphicNum = Either Integer Float
+
+polymorphicNumToLispOption :: LispPolymorphicNum -> LispOption
+polymorphicNumToLispOption (Left a) = Val $ Int a 
+polymorphicNumToLispOption (Right a) = Val $ Float a 
