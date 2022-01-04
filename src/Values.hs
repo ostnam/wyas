@@ -101,7 +101,7 @@ primitives = [("+", polymorphicNumBinop lispAddition),
               ("/", polymorphicNumBinop lispDivision),
               ("mod", polymorphicNumBinop lispModulus),
               ("quotient", polymorphicNumBinop lispQuotient),
-              ("remainder", polymorphicNumBinop lispRemainder)]
+              ("remainder", intBinop lispRemainder)]
 
 polymorphicNumBinop :: (LispErrorable LispPolymorphicNum ->
                         LispErrorable LispPolymorphicNum ->
@@ -114,6 +114,12 @@ polymorphicNumBinop op vals =
     Err a -> Err a
     Val (Left a)  -> Val $ Int a
     Val (Right a) -> Val $ Float a
+
+intBinop :: (LispOption -> LispOption -> LispOption)
+         -> [LispOption]
+         -> LispOption
+intBinop op singleval@[Val a] = Err $ NumArgs 2 [Val a]
+intBinop op vals = foldl1 op vals
 
 toPolymorphicNum :: LispOption -> LispErrorable LispPolymorphicNum
 toPolymorphicNum (Val (Int a)) = Val $ Left a
@@ -133,21 +139,27 @@ lispAddition (Val (Right a)) (Val (Left b)) = Val $ Right (a + fromInteger b)
 lispMultiplication :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispMultiplication = error "not implemented"
 
-lispRemainder :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispRemainder :: LispOption 
+              -> LispOption
+              -> LispOption
 lispRemainder a@(Err _) _ = a
 lispRemainder _ a@(Err _) = a
-lispRemainder (Val a) (Val (Left 0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Int 0]
-lispRemainder (Val a) (Val (Right 0.0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Float 0]
-lispRemainder (Val (Left a)) (Val (Left b)) = Val $ Left (rem a b)
-lispRemainder (Val (Right a)) (Val (Right b)) = Val $ Right (mod' a b)
-lispRemainder (Val (Left a)) (Val (Right b)) = Val $ Right (mod' (fromIntegral a) b)
-lispRemainder (Val (Right a)) (Val (Left b)) = Val $ Right (mod' a $ fromIntegral b)
+lispRemainder (Val (Int a)) (Val (Int 0)) = Err $ Numerical ("Error: tried to divide by zero while applying remainder of " ++ show a ++ "divided by: 0") [Val $ Int a, Val $ Int 0]
+lispRemainder (Val (Int a)) (Val (Int b)) = Val $ Int (rem a b)
+lispRemainder (Val a) (Val b)             = Err $ TypeMismatch ("Error: tried to calculate the remainder of:" ++ show a ++ "and " ++ show b ++ ", but one of them isn't an Int. The remainder requires both arguments to be ints") (Val $ List [a, b])
 
 lispQuotient :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispQuotient = error "not implemented"
 
 lispModulus :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
-lispModulus = error "not implemented"
+lispModulus a@(Err _) _ = a
+lispModulus _ a@(Err _) = a
+lispModulus (Val a) (Val (Left 0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Int 0]
+lispModulus (Val a) (Val (Right 0.0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Float 0]
+lispModulus (Val (Left a)) (Val (Left b)) = Val $ Left (mod a b)
+lispModulus (Val (Right a)) (Val (Right b)) = Val $ Right (mod' a b)
+lispModulus (Val (Left a)) (Val (Right b)) = Val $ Right (mod' (fromIntegral a) b)
+lispModulus (Val (Right a)) (Val (Left b)) = Val $ Right (mod' a $ fromIntegral b)
 
 lispDivision :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispDivision = error "not implemented"

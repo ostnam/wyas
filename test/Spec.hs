@@ -32,25 +32,38 @@ arbitraryAddFloats []   = True -- avoid this QuickCheck case which is caught ups
 arbitraryAddFloats [x] = True -- same
 arbitraryAddFloats floats = Values.polymorphicNumBinop Values.lispAddition (Values.Val . Values.Float <$> floats) == Values.Val (Values.Float (sum floats))
 
-arbitraryRemIntsAndFloats :: [Integer] -> [Float] -> Bool
-arbitraryRemIntsAndFloats [] []  = True
-arbitraryRemIntsAndFloats a [] = True
-arbitraryRemIntsAndFloats [] a = True
-arbitraryRemIntsAndFloats is fs  = if 0.0 `elem` joined
-                                      then case Values.polymorphicNumBinop Values.lispRemainder lispValues of
+arbitraryModsIntsAndFloats :: [Integer] -> [Float] -> Bool
+arbitraryModsIntsAndFloats [] []  = True
+arbitraryModsIntsAndFloats a [] = True
+arbitraryModsIntsAndFloats [] a = True
+arbitraryModsIntsAndFloats (i:is) (f:fs)  = if 0.0 `elem` tail joined
+                                      then case Values.polymorphicNumBinop Values.lispModulus lispValues of
                                                                 (Values.Err (Values.Numerical _ _)) -> True
                                                                 _                                   -> False
-                                      else Values.polymorphicNumBinop Values.lispRemainder lispValues ==
+                                      else Values.polymorphicNumBinop Values.lispModulus lispValues ==
                                               Values.Val (Values.Float $ foldl1 mod' joined)
-  where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
-        joined     = (fromIntegral <$> is) <> fs
+  where lispValues = Values.Val <$> (Values.Int <$> (i:is)) <> (Values.Float <$> (f:fs))
+        joined     = (fromIntegral <$> (i:is)) <> (f:fs)
+
+arbitraryRems :: [Integer] -> Bool
+arbitraryRems [] = True
+arbitraryRems [a] = case Values.intBinop Values.lispRemainder [Values.Val $ Values.Int a] of
+                      (Values.Err _) -> True
+                      _              -> False
+arbitraryRems (x:xs) = if 0 `elem` xs
+                         then case Values.intBinop Values.lispRemainder lispValues of
+                                      (Values.Err _) -> True
+                                      _              -> False
+                         else Values.intBinop Values.lispRemainder lispValues ==
+                                Values.Val (Values.Int $ foldl1 rem (x:xs))
+  where lispValues = Values.Val <$> (Values.Int <$> (x:xs))
 
 arbitraryAddsIntsAndFloats :: [Integer] -> [Float] -> Bool
 arbitraryAddsIntsAndFloats [] [] = True
 arbitraryAddsIntsAndFloats a []  = True
 arbitraryAddsIntsAndFloats [] a  = True
 arbitraryAddsIntsAndFloats is fs = Values.polymorphicNumBinop Values.lispAddition lispValues ==
-                                      Values.Val (Values.Float $ foldl1 (+) $ (fromInteger <$> is) <> fs)
+                                      Values.Val (Values.Float $ sum $ (fromInteger <$> is) <> fs)
   where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
 
 arbitraryIntParse :: Integer -> Bool
@@ -84,8 +97,10 @@ main = hspec $ do
         property arbitraryAddFloats
       it "adds ints and floats together" $ do
         property arbitraryAddsIntsAndFloats
+      it "mods ints and floats together" $ do
+        property arbitraryModsIntsAndFloats
       it "rems ints and floats together" $ do
-        property arbitraryRemIntsAndFloats
+        property arbitraryRems
   describe "Parsing" $ do
     it "parses booleans" $ do
       Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)
