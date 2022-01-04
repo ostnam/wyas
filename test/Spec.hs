@@ -1,9 +1,9 @@
-import Test.Hspec
-import Test.QuickCheck
-import Control.Exception (evaluate)
+import           Control.Exception (evaluate)
+import           Test.Hspec
+import           Test.QuickCheck
 
-import Text.Printf
-import Data.Fixed (mod')
+import           Data.Fixed        (mod')
+import           Text.Printf
 
 import qualified Parsing
 import qualified Values
@@ -36,21 +36,22 @@ arbitraryRemIntsAndFloats :: [Integer] -> [Float] -> Bool
 arbitraryRemIntsAndFloats [] []  = True
 arbitraryRemIntsAndFloats a [] = True
 arbitraryRemIntsAndFloats [] a = True
-arbitraryRemIntsAndFloats is fs  = case elem 0.0 joined of
-                                     True  -> case Values.polymorphicNumBinop Values.lispRemainder lispValues of
-                                                (Values.Err (Values.Numerical _ _)) -> True
-                                                _                                 -> False
-                                     False -> Values.polymorphicNumBinop Values.lispRemainder lispValues == 
-                                                Values.Val (Values.Float $ foldl1 mod' joined)
+arbitraryRemIntsAndFloats is fs  = if 0.0 `elem` joined
+                                      then case Values.polymorphicNumBinop Values.lispRemainder lispValues of
+                                                                (Values.Err (Values.Numerical _ _)) -> True
+                                                                _                                   -> False
+                                      else Values.polymorphicNumBinop Values.lispRemainder lispValues ==
+                                              Values.Val (Values.Float $ foldl1 mod' joined)
   where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
         joined     = (fromIntegral <$> is) <> fs
 
 arbitraryAddsIntsAndFloats :: [Integer] -> [Float] -> Bool
-arbitraryAddsIntsAndFloats [] []  = True
-arbitraryAddsIntsAndFloats a [] = True
-arbitraryAddsIntsAndFloats [] a = True
-arbitraryAddsIntsAndFloats is fs  = Values.polymorphicNumBinop Values.lispAddition lispValues == Values.Val (Values.Float $ sum $ (fromInteger <$> is) <> fs)
-  where lispValues = Values.Val <$> (Values.Float <$> fs) <> (Values.Int <$> is)
+arbitraryAddsIntsAndFloats [] [] = True
+arbitraryAddsIntsAndFloats a []  = True
+arbitraryAddsIntsAndFloats [] a  = True
+arbitraryAddsIntsAndFloats is fs = Values.polymorphicNumBinop Values.lispAddition lispValues ==
+                                      Values.Val (Values.Float $ foldl1 (+) $ (fromInteger <$> is) <> fs)
+  where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
 
 arbitraryIntParse :: Integer -> Bool
 arbitraryIntParse i = Parsing.readExpr (show i) == Values.Val (Values.Int i)
