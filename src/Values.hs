@@ -4,6 +4,9 @@ import           Text.ParserCombinators.Parsec hiding (spaces)
 import           Text.Read                     (readMaybe)
 import           Data.Fixed (mod')
 
+import Helper
+
+-- This is the type for raw, built-in Lisp types.
 data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
@@ -13,24 +16,20 @@ data LispVal = Atom String
              | Char Char
              | Bool Bool
              deriving Eq
--- This is the datatype representing every basic datatype.
 
-instance Show LispVal where show = showVal
+instance Show LispVal where 
+  show (String contents) = "\"" ++ contents ++ "\""
+  show (Atom name) = name
+  show (Int contents) = show contents
+  show (Float contents) = show contents
+  show (Bool True) = "True"
+  show (Bool False) = "False"
+  show (Char a) = ['\'', a, '\'']
+  show (List contents) = "(" ++ unwordsList contents ++ ")"
+  show (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ show tail ++ ")"
 
-showVal :: LispVal -> String
-showVal (String contents) = "\"" ++ contents ++ "\""
-showVal (Atom name) = name
-showVal (Int contents) = show contents
-showVal (Float contents) = show contents
-showVal (Bool True) = "True"
-showVal (Bool False) = "False"
-showVal (Char a) = ['\'', a, '\'']
-showVal (List contents) = "(" ++ unwordsList contents ++ ")"
-showVal (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ showVal tail ++ ")"
 
-unwordsList :: [LispVal] -> String
-unwordsList = unwords . map showVal
-
+-- This is the type for exceptions.
 data LispError = NumArgs Integer [LispOption]
                | TypeMismatch String LispOption
                | Parser ParseError
@@ -47,27 +46,22 @@ instance Show LispError where
   show (NotFunction message func) = message ++ ": " ++ show func
   show (NumArgs expected found) = "Expected " ++ show expected
                                ++ " args: found values " ++ unwords (show <$> found)
-
   show (TypeMismatch expected found) = "Invalid type: expected " ++ expected
                                     ++ expected ++ ", found " ++ show found
   show (Parser parseErr) = "Parse error at " ++ show parseErr
   show (Default string) = "Error: " ++ show string
+  show (Numerical string vals) = "Error:" ++ string ++ unwordsList vals
 
+-- This type is the sum of a lisp exception or another type.
 data LispErrorable a = Err LispError | Val a
   deriving Show
 
-instance (Eq t) => Eq (LispErrorable t) where
-  (==) (Err _) (Val _) = False
-  (==) (Val _) (Err _) = False
-  (==) (Val a) (Val b) = a == b
-  (==) (Err a) (Err b) = a == b
-
 instance Functor LispErrorable where
-  fmap f (Val a) = Val (f a)
+  fmap f (Val a  ) = Val (f a)
   fmap f e@(Err a) = Err a
 
 instance Applicative LispErrorable where
-  pure a = Val a
+  pure = Val 
   (Err a) <*> _ = Err a
   _ <*> (Err a) = Err a
   Val f <*> Val a = Val (f a)
@@ -77,9 +71,18 @@ instance Monad LispErrorable where
   Val a >>= f = f a
   return      = Val
 
+instance (Eq t) => Eq (LispErrorable t) where
+  (==) (Err _) (Val _) = False
+  (==) (Val _) (Err _) = False
+  (==) (Val a) (Val b) = a == b
+  (==) (Err a) (Err b) = a == b
+
 type LispOption = LispErrorable LispVal
 -- This is the case of the LispErrorable type applied to LispVals
+-- It's the final type for Lisp values.
 
+type LispPolymorphicNum = Either Integer Float
+-- Type used for functions such as (+) which can be used on ints and floats.
 
 eval :: LispOption -> LispOption
 eval (Err a) = Err a
@@ -102,6 +105,7 @@ primitives = [("+", polymorphicNumBinop lispAddition),
               ("mod", polymorphicNumBinop lispModulus),
               ("quotient", polymorphicNumBinop lispQuotient),
               ("remainder", intBinop lispRemainder)]
+-- Built-in functions
 
 polymorphicNumBinop :: (LispErrorable LispPolymorphicNum ->
                         LispErrorable LispPolymorphicNum ->
@@ -114,6 +118,7 @@ polymorphicNumBinop op vals =
     Err a -> Err a
     Val (Left a)  -> Val $ Int a
     Val (Right a) -> Val $ Float a
+-- This is the function that handles applying an operator 
 
 intBinop :: (LispOption -> LispOption -> LispOption)
          -> [LispOption]
@@ -127,8 +132,8 @@ toPolymorphicNum (Val (Float a)) = Val $ Right a
 toPolymorphicNum a = Err $ TypeMismatch ("Couldn't apply a numerical function to" ++ show a ++ ", as it isn't a numerical value.") a
 
 lispAddition :: LispErrorable LispPolymorphicNum
-        -> LispErrorable LispPolymorphicNum
-        -> LispErrorable LispPolymorphicNum
+             -> LispErrorable LispPolymorphicNum
+             -> LispErrorable LispPolymorphicNum
 lispAddition a@(Err _) _ = a
 lispAddition _ a@(Err _) = a
 lispAddition (Val (Left a)) (Val (Left b)) = Val $ Left (a + b)
@@ -167,8 +172,7 @@ lispDivision = error "not implemented"
 lispSubstraction :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispSubstraction = error "not implemented"
 
-type LispPolymorphicNum = Either Integer Float
-
 polymorphicNumToLispOption :: LispPolymorphicNum -> LispOption
 polymorphicNumToLispOption (Left a) = Val $ Int a 
 polymorphicNumToLispOption (Right a) = Val $ Float a 
+
