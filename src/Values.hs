@@ -94,9 +94,18 @@ type LispOption = LispErrorable LispVal
 
 eval :: LispOption -> LispOption
 eval (Err a                         ) = Err a
+eval (Val (List [Atom "if", predicate, conseq, fallback])) =
+                          case evalVal predicate of
+                            (Val (Bool True))  -> evalVal conseq
+                            (Val (Bool False)) -> evalVal fallback
+                            (Err a) -> Err a
+                            a       -> Err $ Default "Tried to apply if, but the predicate doesn't evaluate to a bool."
 eval (Val (List [Atom "quote", val])) = Val val
 eval (Val (List (Atom func : args) )) = apply func $ eval . Val <$> args
 eval (Val val                       ) = Val val
+
+evalVal :: LispVal -> LispOption
+evalVal = eval . Val
 
 apply :: String -> [LispOption] -> LispOption
 apply func args = case lookup func primitives of
