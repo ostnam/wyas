@@ -60,7 +60,11 @@ instance Show LispError where
   show (Numerical string vals) = "Error:" ++ string ++ unwordsList vals
 
 data LispErrorable a = Err LispError | Val a
-  deriving Show
+
+instance Show a => Show (LispErrorable a) where
+  show (Err a) = show a
+  show (Val a) = show a
+
 -- This type is the sum of a lisp exception or another type.
 
 instance Functor LispErrorable where
