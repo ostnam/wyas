@@ -84,12 +84,56 @@ arbitraryMultIntAndFloat is fs = Values.lispBinop Values.lispMultiplication lisp
                                       Values.Val (Values.Float $ product $ (fromInteger <$> is) <> fs)
   where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
 -}
-repeatStr :: String 
+repeatStr :: String
           -> Integer
           -> Bool
 repeatStr str int = Values.lispBinop Values.lispMultiplication vals ==
                       Values.Val (Values.String $ concat $ replicate (fromInteger int) str)
   where vals = Values.Val <$> [Values.String str, Values.Int int]
+
+arbitrarySubstractIntAndFloat :: [Integer]
+                              -> [Float]
+                              -> Bool
+arbitrarySubstractIntAndFloat [] [] = True
+arbitrarySubstractIntAndFloat a []  = True
+arbitrarySubstractIntAndFloat [] a  = True
+arbitrarySubstractIntAndFloat is fs = Values.lispBinop Values.lispSubstraction lispValues `Values.lispOptFloatEq`
+                                      Values.Val (Values.Float $ foldl1 (-) $ (fromInteger <$> is) <> fs)
+  where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
+
+arbitraryDivideIntAndFloat :: [Integer]
+                              -> [Float]
+                              -> Bool
+arbitraryDivideIntAndFloat [] [] = True
+arbitraryDivideIntAndFloat [] [a] = case Values.lispBinop Values.lispDivision [Values.Val $ Values.Float a] of
+                      (Values.Err _) -> True
+                      _              -> False
+arbitraryDivideIntAndFloat [a] [] = case Values.lispBinop Values.lispDivision [Values.Val $ Values.Int a] of
+                      (Values.Err _) -> True
+                      _              -> False
+arbitraryDivideIntAndFloat is fs = if 0.0 `elem` tail joined
+                         then case Values.lispBinop Values.lispDivision lispValues of
+                                      (Values.Err _) -> True
+                                      _              -> False
+                         else Values.lispBinop Values.lispDivision lispValues `Values.lispOptFloatEq`
+                                Values.Val (Values.Float $ foldl1 (/) joined)
+  where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
+        joined = (fromInteger <$> is) <> fs
+
+arbitraryIntDivision :: [Integer]
+                     -> Bool
+arbitraryIntDivision [] = True
+arbitraryIntDivision [a] = case Values.lispBinop Values.lispQuotient [Values.Val $ Values.Int a] of
+                      (Values.Err _) -> True
+                      _              -> False
+arbitraryIntDivision (x:xs) = if 0 `elem` xs
+                         then case Values.lispBinop Values.lispQuotient lispValues of
+                                      (Values.Err _) -> True
+                                      _              -> False
+                         else Values.lispBinop Values.lispQuotient lispValues ==
+                                Values.Val (Values.Int $ foldl1 div (x:xs))
+  where lispValues = Values.Val . Values.Int <$> (x:xs)
+
 
 main :: IO ()
 main = hspec $ do
@@ -125,11 +169,11 @@ main = hspec $ do
       it "multiplies strings and ints" $ do
         property repeatStr
       it "substracts ints and floats" $ do
-        pending
+        property arbitrarySubstractIntAndFloat
       it "divides ints and floats" $ do
-        pending
+        property arbitraryDivideIntAndFloat
       it "does integer division with quotient" $ do
-        pending
+        property arbitraryIntDivision
 
 
 
