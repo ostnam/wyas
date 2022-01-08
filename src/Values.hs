@@ -7,7 +7,6 @@ import           Data.Fixed (mod')
 import Helper
 import Control.Exception (TypeError(TypeError))
 
--- This is the type for raw, built-in Lisp types.
 data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
@@ -17,6 +16,7 @@ data LispVal = Atom String
              | Char Char
              | Bool Bool
              deriving Eq
+-- This is the type for raw, built-in Lisp types.
 
 instance Show LispVal where
   show (String contents) = "\"" ++ contents ++ "\""
@@ -30,7 +30,6 @@ instance Show LispVal where
   show (DottedList head tail) = "(" ++ unwordsList head ++ "." ++ show tail ++ ")"
 
 
--- This is the type for exceptions.
 data LispError = NumArgs Integer [LispOption]
                | TypeMismatch String LispOption
                | Parser ParseError
@@ -40,6 +39,7 @@ data LispError = NumArgs Integer [LispOption]
                | Default String
                | Numerical String [LispOption]
                deriving Eq
+-- This is the type for exceptions.
 
 instance Show LispError where
   show (UnboundVar message varname) = message ++ ": " ++ varname
@@ -53,9 +53,9 @@ instance Show LispError where
   show (Default string) = "Error: " ++ show string
   show (Numerical string vals) = "Error:" ++ string ++ unwordsList vals
 
--- This type is the sum of a lisp exception or another type.
 data LispErrorable a = Err LispError | Val a
   deriving Show
+-- This type is the sum of a lisp exception or another type.
 
 instance Functor LispErrorable where
   fmap f (Val a  ) = Val (f a)
@@ -103,7 +103,7 @@ primitives = [("+", lispBinop lispAddition),
               ("-", polymorphicNumBinop lispSubstraction),
               ("*", polymorphicNumBinop lispMultiplication),
               ("/", polymorphicNumBinop lispDivision),
-              ("mod", polymorphicNumBinop lispModulus),
+              ("mod", lispBinop lispModulus),
               ("quotient", polymorphicNumBinop lispQuotient),
               ("remainder", intBinop lispRemainder)]
 -- Built-in functions
@@ -167,15 +167,18 @@ lispRemainder (Val a) (Val b)             = Err $ TypeMismatch ("Error: tried to
 lispQuotient :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispQuotient = error "not implemented"
 
-lispModulus :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispModulus :: LispOption
+            -> LispOption
+            -> LispOption
 lispModulus a@(Err _) _ = a
 lispModulus _ a@(Err _) = a
-lispModulus (Val a) (Val (Left 0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Int 0]
-lispModulus (Val a) (Val (Right 0.0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [polymorphicNumToLispOption a, Val $ Float 0]
-lispModulus (Val (Left a)) (Val (Left b)) = Val $ Left (mod a b)
-lispModulus (Val (Right a)) (Val (Right b)) = Val $ Right (mod' a b)
-lispModulus (Val (Left a)) (Val (Right b)) = Val $ Right (mod' (fromIntegral a) b)
-lispModulus (Val (Right a)) (Val (Left b)) = Val $ Right (mod' a $ fromIntegral b)
+lispModulus (Val a) (Val (Int 0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [Val a, Val $ Int 0]
+lispModulus (Val a) (Val (Float 0.0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [Val a, Val $ Float 0]
+lispModulus (Val (Int a)) (Val (Int b)) = Val $ Int (mod a b)
+lispModulus (Val (Float a)) (Val (Float b)) = Val $ Float (mod' a b)
+lispModulus (Val (Int a)) (Val (Float b)) = Val $ Float (mod' (fromIntegral a) b)
+lispModulus (Val (Float a)) (Val (Int b)) = Val $ Float (mod' a $ fromIntegral b)
+lispModulus (Val a) (Val b) = Err $ TypeMismatch "Error: you attempted to calculate the modulus of two types which aren't numerical." $ Val $ List [a, b]
 
 lispDivision :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispDivision = error "not implemented"

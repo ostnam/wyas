@@ -37,10 +37,10 @@ arbitraryModsIntsAndFloats [] []  = True
 arbitraryModsIntsAndFloats a [] = True
 arbitraryModsIntsAndFloats [] a = True
 arbitraryModsIntsAndFloats (i:is) (f:fs)  = if 0.0 `elem` tail joined
-                                      then case Values.polymorphicNumBinop Values.lispModulus lispValues of
+                                      then case Values.lispBinop Values.lispModulus lispValues of
                                                                 (Values.Err (Values.Numerical _ _)) -> True
                                                                 _                                   -> False
-                                      else Values.polymorphicNumBinop Values.lispModulus lispValues ==
+                                      else Values.lispBinop Values.lispModulus lispValues ==
                                               Values.Val (Values.Float $ foldl1 mod' joined)
   where lispValues = Values.Val <$> (Values.Int <$> (i:is)) <> (Values.Float <$> (f:fs))
         joined     = (fromIntegral <$> (i:is)) <> (f:fs)
