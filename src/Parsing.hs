@@ -22,7 +22,7 @@ parseExpr = parseNumber <|> parseAtom <|> parseString <|> parseQuoted <|> do
 parseAtom :: Parser Values.LispVal
 parseAtom = do
   first <- letter <|> symbol
-  rest  <- many (letter <|> digit <|> atomSymbol)
+  rest  <- many (letter <|> digit <|> symbol)
   let atom = first : rest
   return $ case atom of
     "True"  -> Bool True
@@ -34,7 +34,7 @@ atomSymbol = oneOf "_"
 -- Parser for every non-letter or digit valid atom symbol
 
 symbol :: Parser Char
-symbol = oneOf "!$%|*+-/!<=?>@^_~#"
+symbol = oneOf "&!$%|*+-/!<=?>@^_~#"
 
 spaces :: Parser ()
 spaces = skipMany1 space
