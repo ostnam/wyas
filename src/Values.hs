@@ -82,9 +82,6 @@ type LispOption = LispErrorable LispVal
 -- This is the case of the LispErrorable type applied to LispVals
 -- It's the final type for Lisp values.
 
-type LispPolymorphicNum = Either Integer Float
--- Type used for functions such as (+) which can be used on ints and floats.
-
 eval :: LispOption -> LispOption
 eval (Err a) = Err a
 eval (Val (List [Atom "quote", val])) = Val val
@@ -100,12 +97,12 @@ apply func args =
 
 primitives :: [(String, [LispOption] -> LispOption)]
 primitives = [("+", lispBinop lispAddition),
-              ("-", polymorphicNumBinop lispSubstraction),
-              ("*", polymorphicNumBinop lispMultiplication),
-              ("/", polymorphicNumBinop lispDivision),
+              ("-", lispBinop lispSubstraction),
+              ("*", lispBinop lispMultiplication),
+              ("/", lispBinop lispDivision),
               ("mod", lispBinop lispModulus),
-              ("quotient", polymorphicNumBinop lispQuotient),
-              ("remainder", intBinop lispRemainder)]
+              ("quotient", lispBinop lispQuotient),
+              ("remainder", lispBinop lispRemainder)]
 -- Built-in functions
 
 lispBinop :: (LispOption ->
@@ -115,30 +112,6 @@ lispBinop :: (LispOption ->
           -> LispOption
 lispBinop op singleVal@[Val a] = Err $ NumArgs 2 [Val a]
 lispBinop op vals = foldl1 op vals
-
-polymorphicNumBinop :: (LispErrorable LispPolymorphicNum ->
-                        LispErrorable LispPolymorphicNum ->
-                        LispErrorable LispPolymorphicNum)
-                    -> [LispOption]
-                    -> LispOption
-polymorphicNumBinop op singleVal@[Val a] = Err $ NumArgs 2 [Val a]
-polymorphicNumBinop op vals =
-  case foldl1 op (toPolymorphicNum <$> vals) of
-    Err a -> Err a
-    Val (Left a)  -> Val $ Int a
-    Val (Right a) -> Val $ Float a
--- This is the function that handles applying an operator 
-
-intBinop :: (LispOption -> LispOption -> LispOption)
-         -> [LispOption]
-         -> LispOption
-intBinop op singleval@[Val a] = Err $ NumArgs 2 [Val a]
-intBinop op vals = foldl1 op vals
-
-toPolymorphicNum :: LispOption -> LispErrorable LispPolymorphicNum
-toPolymorphicNum (Val (Int a)) = Val $ Left a
-toPolymorphicNum (Val (Float a)) = Val $ Right a
-toPolymorphicNum a = Err $ TypeMismatch ("Couldn't apply a numerical function to" ++ show a ++ ", as it isn't a numerical value.") a
 
 lispAddition :: LispOption
              -> LispOption
@@ -152,8 +125,17 @@ lispAddition (Val (Float a)) (Val (Int b)) = Val $ Float (a + fromInteger b)
 lispAddition (Val (String a)) (Val b) = Val $ String (a ++ show b)
 lispAddition (Val a) (Val b) = Err $ TypeMismatch ("Can't apply the operator + to its arguments passed:" ++ show a ++ ", and:" ++ show b ) (Val $ List [a, b])
 
-lispMultiplication :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
-lispMultiplication = error "not implemented"
+lispMultiplication :: LispOption -> LispOption -> LispOption
+lispMultiplication a@(Err _) _ = a
+lispMultiplication _ a@(Err _) = a
+lispMultiplication (Val (Int a)) (Val (Int b)) = Val $ Int $ a*b
+lispMultiplication (Val (Float a)) (Val (Float b)) = Val $ Float $ a*b
+lispMultiplication (Val (Int a)) (Val (Float b)) = Val $ Float (fromInteger a * b)
+lispMultiplication (Val (Float a)) (Val (Int b)) = Val $ Float (a * fromInteger b)
+lispMultiplication (Val (String a)) (Val (Int b)) = Val $ String $ concat $ replicate (fromInteger b) a
+lispMultiplication (Val (Int b)) (Val (String a)) = Val $ String $ concat $ replicate (fromInteger b) a
+lispMultiplication (Val a) (Val b) = Err $ TypeMismatch ("Can't apply the operator * to its arguments passed:" ++ show a ++ ", and:" ++ show b ) (Val $ List [a, b])
+
 
 lispRemainder :: LispOption
               -> LispOption
@@ -164,7 +146,7 @@ lispRemainder (Val (Int a)) (Val (Int 0)) = Err $ Numerical ("Error: tried to di
 lispRemainder (Val (Int a)) (Val (Int b)) = Val $ Int (rem a b)
 lispRemainder (Val a) (Val b)             = Err $ TypeMismatch ("Error: tried to calculate the remainder of:" ++ show a ++ "and " ++ show b ++ ", but one of them isn't an Int. The remainder requires both arguments to be ints") (Val $ List [a, b])
 
-lispQuotient :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispQuotient :: LispOption -> LispOption -> LispOption
 lispQuotient = error "not implemented"
 
 lispModulus :: LispOption
@@ -180,13 +162,8 @@ lispModulus (Val (Int a)) (Val (Float b)) = Val $ Float (mod' (fromIntegral a) b
 lispModulus (Val (Float a)) (Val (Int b)) = Val $ Float (mod' a $ fromIntegral b)
 lispModulus (Val a) (Val b) = Err $ TypeMismatch "Error: you attempted to calculate the modulus of two types which aren't numerical." $ Val $ List [a, b]
 
-lispDivision :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispDivision :: LispOption -> LispOption -> LispOption
 lispDivision = error "not implemented"
 
-lispSubstraction :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
+lispSubstraction :: LispOption -> LispOption -> LispOption
 lispSubstraction = error "not implemented"
-
-polymorphicNumToLispOption :: LispPolymorphicNum -> LispOption
-polymorphicNumToLispOption (Left a) = Val $ Int a
-polymorphicNumToLispOption (Right a) = Val $ Float a
-
