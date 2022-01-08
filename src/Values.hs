@@ -128,14 +128,32 @@ lispAddition (Val a) (Val b) = Err $ TypeMismatch ("Can't apply the operator + t
 lispMultiplication :: LispOption -> LispOption -> LispOption
 lispMultiplication a@(Err _) _ = a
 lispMultiplication _ a@(Err _) = a
-lispMultiplication (Val (Int a)) (Val (Int b)) = Val $ Int $ a*b
-lispMultiplication (Val (Float a)) (Val (Float b)) = Val $ Float $ a*b
+lispMultiplication (Val (Int a)) (Val (Int b)) = Val $ Int $ a * b
+lispMultiplication (Val (Float a)) (Val (Float b)) = Val $ Float $ a * b
 lispMultiplication (Val (Int a)) (Val (Float b)) = Val $ Float (fromInteger a * b)
 lispMultiplication (Val (Float a)) (Val (Int b)) = Val $ Float (a * fromInteger b)
 lispMultiplication (Val (String a)) (Val (Int b)) = Val $ String $ concat $ replicate (fromInteger b) a
 lispMultiplication (Val (Int b)) (Val (String a)) = Val $ String $ concat $ replicate (fromInteger b) a
 lispMultiplication (Val a) (Val b) = Err $ TypeMismatch ("Can't apply the operator * to its arguments passed:" ++ show a ++ ", and:" ++ show b ) (Val $ List [a, b])
 
+lispDivision :: LispOption -> LispOption -> LispOption
+lispDivision a@(Err _) _ = a
+lispDivision _ a@(Err _) = a
+lispDivision (Val a) (Val (Int 0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [Val a, Val $ Int 0]
+lispDivision (Val a) (Val (Float 0.0)) = Err $ Numerical "Tried to divide by 0. Arguments to remainder where:" [Val a, Val $ Float 0]
+lispDivision (Val (Int a)) (Val (Int b)) = Val $ Float (fromInteger a / fromInteger b)
+lispDivision (Val (Float a)) (Val (Float b)) = Val $ Float (a / b)
+lispDivision (Val (Int a)) (Val (Float b)) = Val $ Float (fromIntegral a / b)
+lispDivision (Val (Float a)) (Val (Int b)) = Val $ Float (a / fromIntegral b)
+lispDivision (Val a) (Val b) = Err $ TypeMismatch "Error: you attempted to calculate the modulus of two types which aren't numerical." $ Val $ List [a, b]
+
+
+lispQuotient :: LispOption -> LispOption -> LispOption
+lispQuotient a@(Err _) _ = a
+lispQuotient _ a@(Err _) = a
+lispQuotient (Val (Int a)) (Val (Int 0)) = Err $ Numerical ("Error: tried to divide by zero while applying quotient of " ++ show a ++ "divided by: 0") [Val $ Int a, Val $ Int 0]
+lispQuotient (Val (Int a)) (Val (Int b)) = Val $ Int (div a b)
+lispQuotient (Val a) (Val b)             = Err $ TypeMismatch ("Error: tried to calculate the remainder of:" ++ show a ++ "and " ++ show b ++ ", but one of them isn't an Int. The remainder requires both arguments to be ints") (Val $ List [a, b])
 
 lispRemainder :: LispOption
               -> LispOption
@@ -145,9 +163,6 @@ lispRemainder _ a@(Err _) = a
 lispRemainder (Val (Int a)) (Val (Int 0)) = Err $ Numerical ("Error: tried to divide by zero while applying remainder of " ++ show a ++ "divided by: 0") [Val $ Int a, Val $ Int 0]
 lispRemainder (Val (Int a)) (Val (Int b)) = Val $ Int (rem a b)
 lispRemainder (Val a) (Val b)             = Err $ TypeMismatch ("Error: tried to calculate the remainder of:" ++ show a ++ "and " ++ show b ++ ", but one of them isn't an Int. The remainder requires both arguments to be ints") (Val $ List [a, b])
-
-lispQuotient :: LispOption -> LispOption -> LispOption
-lispQuotient = error "not implemented"
 
 lispModulus :: LispOption
             -> LispOption
@@ -162,8 +177,17 @@ lispModulus (Val (Int a)) (Val (Float b)) = Val $ Float (mod' (fromIntegral a) b
 lispModulus (Val (Float a)) (Val (Int b)) = Val $ Float (mod' a $ fromIntegral b)
 lispModulus (Val a) (Val b) = Err $ TypeMismatch "Error: you attempted to calculate the modulus of two types which aren't numerical." $ Val $ List [a, b]
 
-lispDivision :: LispOption -> LispOption -> LispOption
-lispDivision = error "not implemented"
-
 lispSubstraction :: LispOption -> LispOption -> LispOption
-lispSubstraction = error "not implemented"
+lispSubstraction a@(Err _) _ = a
+lispSubstraction _ a@(Err _) = a
+lispSubstraction (Val (Int a)) (Val (Int b)) = Val $ Int (a - b)
+lispSubstraction (Val (Float a)) (Val (Float b)) = Val $ Float (a - b)
+lispSubstraction (Val (Int a)) (Val (Float b)) = Val $ Float (fromIntegral a - b)
+lispSubstraction (Val (Float a)) (Val (Int b)) = Val $ Float (a - fromIntegral b)
+lispSubstraction (Val a) (Val b) = Err $ TypeMismatch "Error: you attempted to calculate the modulus of two types which aren't numerical." $ Val $ List [a, b]
+
+lispOptFloatEq :: LispOption
+               -> LispOption
+               -> Bool
+lispOptFloatEq (Val (Float a)) (Val (Float b)) = floatEq a b
+lispOptFloatEq _ _ = False

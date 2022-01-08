@@ -47,14 +47,14 @@ arbitraryModsIntsAndFloats (i:is) (f:fs)  = if 0.0 `elem` tail joined
 
 arbitraryRems :: [Integer] -> Bool
 arbitraryRems [] = True
-arbitraryRems [a] = case Values.intBinop Values.lispRemainder [Values.Val $ Values.Int a] of
+arbitraryRems [a] = case Values.lispBinop Values.lispRemainder [Values.Val $ Values.Int a] of
                       (Values.Err _) -> True
                       _              -> False
 arbitraryRems (x:xs) = if 0 `elem` xs
-                         then case Values.intBinop Values.lispRemainder lispValues of
+                         then case Values.lispBinop Values.lispRemainder lispValues of
                                       (Values.Err _) -> True
                                       _              -> False
-                         else Values.intBinop Values.lispRemainder lispValues ==
+                         else Values.lispBinop Values.lispRemainder lispValues ==
                                 Values.Val (Values.Int $ foldl1 rem (x:xs))
   where lispValues = Values.Val <$> (Values.Int <$> (x:xs))
 
@@ -73,6 +73,24 @@ arbitraryFloatParse :: Float -> Bool
 arbitraryFloatParse f = Parsing.readExpr strF == Values.Val (Values.Float f)
   where strF = printf "%f" f
 
+{-
+arbitraryMultIntAndFloat :: [Integer]
+                        -> [Float]
+                        -> Bool
+arbitraryMultIntAndFloat [] [] = True
+arbitraryMultIntAndFloat a []  = True
+arbitraryMultIntAndFloat [] a  = True
+arbitraryMultIntAndFloat is fs = Values.lispBinop Values.lispMultiplication lispValues `Values.lispOptFloatEq`
+                                      Values.Val (Values.Float $ product $ (fromInteger <$> is) <> fs)
+  where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
+-}
+repeatStr :: String 
+          -> Integer
+          -> Bool
+repeatStr str int = Values.lispBinop Values.lispMultiplication vals ==
+                      Values.Val (Values.String $ concat $ replicate (fromInteger int) str)
+  where vals = Values.Val <$> [Values.String str, Values.Int int]
+
 main :: IO ()
 main = hspec $ do
   describe "Values" $ do
@@ -90,6 +108,7 @@ main = hspec $ do
       it "prints booleans" $ do
         show (Values.Bool True) `shouldBe` "True"
         show (Values.Bool False) `shouldBe` "False"
+
     describe "binaryop" $ do
       it "adds ints" $ do
         property arbitraryAdd
@@ -101,6 +120,20 @@ main = hspec $ do
         property arbitraryModsIntsAndFloats
       it "rems ints and floats together" $ do
         property arbitraryRems
+      it "multiplies ints and floats together" $ do
+        pendingWith "need to deal with float precision errors"  -- property arbitraryMultIntAndFloat
+      it "multiplies strings and ints" $ do
+        property repeatStr
+      it "substracts ints and floats" $ do
+        pending
+      it "divides ints and floats" $ do
+        pending
+      it "does integer division with quotient" $ do
+        pending
+
+
+
+
   describe "Parsing" $ do
     it "parses booleans" $ do
       Parsing.readExpr "True" `shouldBe` Values.Val (Values.Bool True)
