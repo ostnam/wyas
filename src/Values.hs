@@ -5,6 +5,7 @@ import           Text.Read                     (readMaybe)
 import           Data.Fixed (mod')
 
 import Helper
+import Control.Exception (TypeError(TypeError))
 
 -- This is the type for raw, built-in Lisp types.
 data LispVal = Atom String
@@ -17,7 +18,7 @@ data LispVal = Atom String
              | Bool Bool
              deriving Eq
 
-instance Show LispVal where 
+instance Show LispVal where
   show (String contents) = "\"" ++ contents ++ "\""
   show (Atom name) = name
   show (Int contents) = show contents
@@ -61,7 +62,7 @@ instance Functor LispErrorable where
   fmap f e@(Err a) = Err a
 
 instance Applicative LispErrorable where
-  pure = Val 
+  pure = Val
   (Err a) <*> _ = Err a
   _ <*> (Err a) = Err a
   Val f <*> Val a = Val (f a)
@@ -98,7 +99,7 @@ apply func args =
 
 
 primitives :: [(String, [LispOption] -> LispOption)]
-primitives = [("+", polymorphicNumBinop lispAddition),
+primitives = [("+", lispBinop lispAddition),
               ("-", polymorphicNumBinop lispSubstraction),
               ("*", polymorphicNumBinop lispMultiplication),
               ("/", polymorphicNumBinop lispDivision),
@@ -106,6 +107,14 @@ primitives = [("+", polymorphicNumBinop lispAddition),
               ("quotient", polymorphicNumBinop lispQuotient),
               ("remainder", intBinop lispRemainder)]
 -- Built-in functions
+
+lispBinop :: (LispOption ->
+              LispOption ->
+              LispOption)
+          -> [LispOption]
+          -> LispOption
+lispBinop op singleVal@[Val a] = Err $ NumArgs 2 [Val a]
+lispBinop op vals = foldl1 op vals
 
 polymorphicNumBinop :: (LispErrorable LispPolymorphicNum ->
                         LispErrorable LispPolymorphicNum ->
@@ -131,20 +140,22 @@ toPolymorphicNum (Val (Int a)) = Val $ Left a
 toPolymorphicNum (Val (Float a)) = Val $ Right a
 toPolymorphicNum a = Err $ TypeMismatch ("Couldn't apply a numerical function to" ++ show a ++ ", as it isn't a numerical value.") a
 
-lispAddition :: LispErrorable LispPolymorphicNum
-             -> LispErrorable LispPolymorphicNum
-             -> LispErrorable LispPolymorphicNum
+lispAddition :: LispOption
+             -> LispOption
+             -> LispOption
 lispAddition a@(Err _) _ = a
 lispAddition _ a@(Err _) = a
-lispAddition (Val (Left a)) (Val (Left b)) = Val $ Left (a + b)
-lispAddition (Val (Right a)) (Val (Right b)) = Val $ Right (a + b)
-lispAddition (Val (Left a)) (Val (Right b)) = Val $ Right (fromInteger a + b)
-lispAddition (Val (Right a)) (Val (Left b)) = Val $ Right (a + fromInteger b)
+lispAddition (Val (Int a)) (Val (Int b)) = Val $ Int (a + b)
+lispAddition (Val (Float a)) (Val (Float b)) = Val $ Float (a + b)
+lispAddition (Val (Int a)) (Val (Float b)) = Val $ Float (fromInteger a + b)
+lispAddition (Val (Float a)) (Val (Int b)) = Val $ Float (a + fromInteger b)
+lispAddition (Val (String a)) (Val b) = Val $ String (a ++ show b)
+lispAddition (Val a) (Val b) = Err $ TypeMismatch ("Can't apply the operator + to its arguments passed:" ++ show a ++ ", and:" ++ show b ) (Val $ List [a, b])
 
 lispMultiplication :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum -> LispErrorable LispPolymorphicNum
 lispMultiplication = error "not implemented"
 
-lispRemainder :: LispOption 
+lispRemainder :: LispOption
               -> LispOption
               -> LispOption
 lispRemainder a@(Err _) _ = a
@@ -173,6 +184,6 @@ lispSubstraction :: LispErrorable LispPolymorphicNum -> LispErrorable LispPolymo
 lispSubstraction = error "not implemented"
 
 polymorphicNumToLispOption :: LispPolymorphicNum -> LispOption
-polymorphicNumToLispOption (Left a) = Val $ Int a 
-polymorphicNumToLispOption (Right a) = Val $ Float a 
+polymorphicNumToLispOption (Left a) = Val $ Int a
+polymorphicNumToLispOption (Right a) = Val $ Float a
 

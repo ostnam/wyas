@@ -9,28 +9,28 @@ import qualified Parsing
 import qualified Values
 
 showArbitraryLispValString :: String -> Bool
-showArbitraryLispValString a = Values.showVal (Values.String a) == ("\"" ++ a ++ "\"")
+showArbitraryLispValString a = show (Values.String a) == ("\"" ++ a ++ "\"")
 -- Correct string formatting should be the content of the string surrrounded
 -- by double quotes.
 
 showArbitraryLispValInt :: Integer -> Bool
-showArbitraryLispValInt a = Values.showVal (Values.Int a) == show a
+showArbitraryLispValInt a = show (Values.Int a) == show a
 
 showArbitraryLispValFloat :: Float -> Bool
-showArbitraryLispValFloat a = Values.showVal (Values.Float a) == show a
+showArbitraryLispValFloat a = show (Values.Float a) == show a
 
 showArbitraryLispValChar :: Char -> Bool
-showArbitraryLispValChar a = Values.showVal (Values.Char a) == ['\'', a, '\'']
+showArbitraryLispValChar a = show (Values.Char a) == ['\'', a, '\'']
 
 arbitraryAdd :: [Integer] -> Bool
 arbitraryAdd []   = True -- avoid this QuickCheck case which is caught upstream
 arbitraryAdd [x] = True -- same
-arbitraryAdd ints = Values.polymorphicNumBinop Values.lispAddition (Values.Val . Values.Int <$> ints) == Values.Val (Values.Int (sum ints))
+arbitraryAdd ints = Values.lispBinop Values.lispAddition (Values.Val . Values.Int <$> ints) == Values.Val (Values.Int (sum ints))
 
 arbitraryAddFloats :: [Float] -> Bool
 arbitraryAddFloats []   = True -- avoid this QuickCheck case which is caught upstream
 arbitraryAddFloats [x] = True -- same
-arbitraryAddFloats floats = Values.polymorphicNumBinop Values.lispAddition (Values.Val . Values.Float <$> floats) == Values.Val (Values.Float (sum floats))
+arbitraryAddFloats floats = Values.lispBinop Values.lispAddition (Values.Val . Values.Float <$> floats) == Values.Val (Values.Float (sum floats))
 
 arbitraryModsIntsAndFloats :: [Integer] -> [Float] -> Bool
 arbitraryModsIntsAndFloats [] []  = True
@@ -62,7 +62,7 @@ arbitraryAddsIntsAndFloats :: [Integer] -> [Float] -> Bool
 arbitraryAddsIntsAndFloats [] [] = True
 arbitraryAddsIntsAndFloats a []  = True
 arbitraryAddsIntsAndFloats [] a  = True
-arbitraryAddsIntsAndFloats is fs = Values.polymorphicNumBinop Values.lispAddition lispValues ==
+arbitraryAddsIntsAndFloats is fs = Values.lispBinop Values.lispAddition lispValues ==
                                       Values.Val (Values.Float $ sum $ (fromInteger <$> is) <> fs)
   where lispValues = Values.Val <$> (Values.Int <$> is) <> (Values.Float <$> fs)
 
@@ -78,9 +78,9 @@ main = hspec $ do
   describe "Values" $ do
     describe "show LispVal" $ do
       it "prints atoms" $ do
-        Values.showVal (Values.Atom "var_name") `shouldBe` "var_name"
+        show (Values.Atom "var_name") `shouldBe` "var_name"
       it "prints strings" $ do
-        Values.showVal (Values.String "Hello!") `shouldBe` "\"Hello!\""
+        show (Values.String "Hello!") `shouldBe` "\"Hello!\""
       it "prints arbitrary strings" $ do
         property showArbitraryLispValString
       it "prints arbitrary ints" $ do
@@ -88,8 +88,8 @@ main = hspec $ do
       it "prints arbitrary floats" $ do
         property showArbitraryLispValFloat
       it "prints booleans" $ do
-        Values.showVal (Values.Bool True) `shouldBe` "True"
-        Values.showVal (Values.Bool False) `shouldBe` "False"
+        show (Values.Bool True) `shouldBe` "True"
+        show (Values.Bool False) `shouldBe` "False"
     describe "binaryop" $ do
       it "adds ints" $ do
         property arbitraryAdd
