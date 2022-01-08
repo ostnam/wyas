@@ -109,13 +109,31 @@ primitives =
   , ("mod"      , lispBinop lispModulus)
   , ("quotient" , lispBinop lispQuotient)
   , ("remainder", lispBinop lispRemainder)
+
+  , ("=="       , lispStrictBinop lispEq)
+  , ("<"        , lispStrictBinop lispInf)
+  , (">"        , lispStrictBinop lispSup)
+  , ("/="       , lispStrictBinop lispNotEq)
+  , (">="       , lispStrictBinop lispSupEq)
+  , ("<="       , lispStrictBinop lispInfEq)
+  , ("&&"       , lispStrictBinop lispAnd)
+  , ("||"       , lispStrictBinop lispOr)
+  , ("!"        , lispMonop lispNot)
   ]
--- Built-in functions
+
+lispMonop :: (LispOption -> LispOption) -> [LispOption] -> LispOption
+lispMonop op [a] = op a
+lispMonop _ _    = Err $ Default "Too many arguments passed to '!'"
 
 lispBinop
   :: (LispOption -> LispOption -> LispOption) -> [LispOption] -> LispOption
 lispBinop op singleVal@[Val a] = Err $ NumArgs 2 [Val a]
 lispBinop op vals              = foldl1 op vals
+
+lispStrictBinop
+  :: (LispOption -> LispOption -> LispOption) -> [LispOption] -> LispOption
+lispStrictBinop op [a, b] = op a b
+lispStrictBinop _ a       = Err $ NumArgs 2 a
 
 lispAddition :: LispOption -> LispOption -> LispOption
 lispAddition a@(Err _)        _                 = a
@@ -251,6 +269,54 @@ lispSubstraction (Val a) (Val b) =
         "Error: you attempted to calculate the modulus of two types which aren't numerical."
     $ Val
     $ List [a, b]
+
+
+lispEq :: LispOption -> LispOption -> LispOption
+lispEq a b = Val $ Bool $ a == b
+
+lispNotEq :: LispOption -> LispOption -> LispOption
+lispNotEq a b = Val $ Bool $ a /= b
+
+lispSup :: LispOption -> LispOption -> LispOption
+lispSup a@(Err _) _ = a
+lispSup _ a@(Err _) = a
+lispSup (Val (Int a)) (Val (Int b)) = Val $ Bool $ a > b
+lispSup (Val (Float a)) (Val (Float b)) = Val $ Bool $ a > b
+lispSup (Val (Int a)) (Val (Float b)) = Val $ Bool $ fromInteger a > b
+lispSup (Val (Float b)) (Val (Int a)) = Val $ Bool $ fromInteger a > b
+lispSup (Val a) (Val b) = Err $ TypeMismatch "Tried comparing two non-numerical values using '>'" (Val $ List [a, b])
+
+lispInf :: LispOption -> LispOption -> LispOption
+lispInf a@(Err _) _ = a
+lispInf _ a@(Err _) = a
+lispInf a b = lispAnd (lispNot $ lispSup a b) (lispNot $ lispEq a b)
+
+lispSupEq :: LispOption -> LispOption -> LispOption
+lispSupEq a@(Err _) _ = a
+lispSupEq _ a@(Err _) = a
+lispSupEq a b = lispOr (lispSup a b) (lispEq a b)
+
+lispInfEq :: LispOption -> LispOption -> LispOption
+lispInfEq a@(Err _) _ = a
+lispInfEq _ a@(Err _) = a
+lispInfEq a b         = lispOr (lispInf a b) (lispEq a b)
+
+lispAnd :: LispOption -> LispOption -> LispOption
+lispAnd a@(Err _) _ = a
+lispAnd _ a@(Err _) = a
+lispAnd (Val (Bool a)) (Val (Bool b)) = Val $ Bool $ a && b
+lispAnd (Val a) (Val b) = Err $ TypeMismatch "Tried applying 'and' to one or two non-boolean arguments." (Val $ List [a, b])
+
+lispOr :: LispOption -> LispOption -> LispOption
+lispOr a@(Err _) _ = a
+lispOr _ a@(Err _) = a
+lispOr (Val (Bool a)) (Val (Bool b)) = Val $ Bool $ a || b
+lispOr (Val a) (Val b) = Err $ TypeMismatch "Tried applying 'and' to one or two non-boolean arguments." (Val $ List [a, b])
+
+lispNot :: LispOption -> LispOption
+lispNot a@(Err _) = a
+lispNot (Val (Bool a))  = Val $ Bool $ not a
+lispNot a  = Err $ TypeMismatch "Tried applying '!' to a non-boolean arg:" a
 
 lispOptFloatEq :: LispOption -> LispOption -> Bool
 lispOptFloatEq (Val (Float a)) (Val (Float b)) = floatEq a b
