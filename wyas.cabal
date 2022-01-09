@@ -27,6 +27,7 @@ library
   exposed-modules:
       Helper
       Parsing
+      Repl
       Values
   other-modules:
       Paths_wyas
