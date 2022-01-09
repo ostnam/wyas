@@ -174,8 +174,9 @@ main = hspec $ do
         property arbitraryDivideIntAndFloat
       it "does integer division with quotient" $ do
         property arbitraryIntDivision
-
-
+      it "evaluates basic cond statements" $ do
+        Values.eval (Parsing.readExpr "(cond (False \"wrong\") (True \"correct\"))") `shouldBe` Values.Val (Values.String "correct")
+        Values.eval (Parsing.readExpr "(cond ((> 2 3) \"wrong\") ((|| True False) \"correct\"))") `shouldBe` Values.Val (Values.String "correct")
 
 
   describe "Parsing" $ do

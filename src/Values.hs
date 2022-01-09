@@ -15,6 +15,7 @@ data LispVal = Atom String
              | String String
              | Char Char
              | Bool Bool
+             | Unit
              deriving Eq
 -- This is the type for raw, built-in Lisp types.
 
@@ -29,6 +30,7 @@ instance Show LispVal where
   show (List   contents) = "(" ++ unwordsList contents ++ ")"
   show (DottedList head tail) =
     "(" ++ unwordsList head ++ "." ++ show tail ++ ")"
+  show Unit = "()"
 
 
 data LispError = NumArgs Integer [LispOption]
@@ -100,12 +102,22 @@ eval (Val (List [Atom "if", predicate, conseq, fallback])) =
                             (Val (Bool False)) -> evalVal fallback
                             (Err a) -> Err a
                             a       -> Err $ Default "Tried to apply if, but the predicate doesn't evaluate to a bool."
+eval (Val (List [Atom "cond"] )) = Err $ Default "Applied 'cond' to 0 arguments"
+eval (Val (List ((Atom "cond"):xs) )) = evalCond xs
 eval (Val (List [Atom "quote", val])) = Val val
 eval (Val (List (Atom func : args) )) = apply func $ eval . Val <$> args
 eval (Val val                       ) = Val val
 
 evalVal :: LispVal -> LispOption
 evalVal = eval . Val
+
+evalCond :: [LispVal] -> LispOption
+evalCond [] = Val Unit
+evalCond ((List [pred, val]):xs) = case evalVal pred of
+                                          (Val (Bool True)) -> evalVal val
+                                          _                 -> evalCond xs
+evalCond (x:xs) = evalCond xs                                                
+
 
 apply :: String -> [LispOption] -> LispOption
 apply func args = case lookup func primitives of
