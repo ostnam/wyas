@@ -122,7 +122,6 @@ primitives =
   , ("mod"      , lispBinop lispModulus)
   , ("quotient" , lispBinop lispQuotient)
   , ("remainder", lispBinop lispRemainder)
-
   , ("=="       , lispStrictBinop lispEq)
   , ("<"        , lispStrictBinop lispInf)
   , (">"        , lispStrictBinop lispSup)
@@ -132,6 +131,9 @@ primitives =
   , ("&&"       , lispStrictBinop lispAnd)
   , ("||"       , lispStrictBinop lispOr)
   , ("!"        , lispMonop lispNot)
+  , ("car"      , lispMonop lispCar)
+  , ("cdr"      , lispMonop lispCdr)
+  , ("cons"     , lispBinop lispCons)
   ]
 
 lispMonop :: (LispOption -> LispOption) -> [LispOption] -> LispOption
@@ -330,6 +332,27 @@ lispNot :: LispOption -> LispOption
 lispNot a@(Err _) = a
 lispNot (Val (Bool a))  = Val $ Bool $ not a
 lispNot a  = Err $ TypeMismatch "Tried applying '!' to a non-boolean arg:" a
+
+lispCar :: LispOption -> LispOption
+lispCar (Val (List (x:xs))) = Val x
+lispCar (Val (DottedList (x:xs) _)) = Val x
+lispCar badArg = Err $ TypeMismatch "Tried to apply 'car' to a non-list argument:" badArg
+
+lispCdr :: LispOption -> LispOption
+lispCdr (Val (List (x:xs))) = Val $ List xs
+lispCdr (Val (DottedList (_:xs) x)) = Val $ DottedList xs x
+lispCdr (Val (DottedList xs x)) = Val x
+lispCdr badArg = Err $ TypeMismatch "Tried to apply 'car' to a non-list argument:" badArg
+
+lispCons :: LispOption
+         -> LispOption
+         -> LispOption
+lispCons a@(Err _) _ = a
+lispCons _ a@(Err _) = a
+lispCons (Val x) (Val (List [])) = Val $ List [x]
+lispCons (Val x) (Val (List xs)) = Val $ List $ x:xs
+lispCons (Val x) (Val (DottedList xs xlast)) = Val $ DottedList (x : xs) xlast
+lispCons (Val x) (Val y) = Val $ DottedList [x] y
 
 lispOptFloatEq :: LispOption -> LispOption -> Bool
 lispOptFloatEq (Val (Float a)) (Val (Float b)) = floatEq a b
