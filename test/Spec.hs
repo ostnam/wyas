@@ -177,7 +177,9 @@ main = hspec $ do
       it "evaluates basic cond statements" $ do
         Values.eval (Parsing.readExpr "(cond (False \"wrong\") (True \"correct\"))") `shouldBe` Values.Val (Values.String "correct")
         Values.eval (Parsing.readExpr "(cond ((> 2 3) \"wrong\") ((|| True False) \"correct\"))") `shouldBe` Values.Val (Values.String "correct")
-
+      it "computes the length of lists" $ do
+        Values.lispLength (Parsing.readExpr "\"this string is 28 chars long\"") `shouldBe` Values.Val (Values.Int 28)
+        Values.lispLength (Parsing.readExpr "(a b c d)") `shouldBe` Values.Val (Values.Int 4)
 
   describe "Parsing" $ do
     it "parses booleans" $ do

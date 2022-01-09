@@ -127,6 +127,7 @@ apply func args = case lookup func primitives of
 
 primitives :: [(String, [LispOption] -> LispOption)]
 primitives =
+  -- Basic math
   [ ("+"        , lispBinop lispAddition)
   , ("-"        , lispBinop lispSubstraction)
   , ("*"        , lispBinop lispMultiplication)
@@ -134,18 +135,25 @@ primitives =
   , ("mod"      , lispBinop lispModulus)
   , ("quotient" , lispBinop lispQuotient)
   , ("remainder", lispBinop lispRemainder)
+  
+  -- Logical comparison
   , ("=="       , lispStrictBinop lispEq)
   , ("<"        , lispStrictBinop lispInf)
   , (">"        , lispStrictBinop lispSup)
   , ("/="       , lispStrictBinop lispNotEq)
   , (">="       , lispStrictBinop lispSupEq)
   , ("<="       , lispStrictBinop lispInfEq)
+
+  -- Boolean operators
   , ("&&"       , lispStrictBinop lispAnd)
   , ("||"       , lispStrictBinop lispOr)
   , ("!"        , lispMonop lispNot)
+
+  -- Lisp list operators
   , ("car"      , lispMonop lispCar)
   , ("cdr"      , lispMonop lispCdr)
   , ("cons"     , lispBinop lispCons)
+  , ("length"   , lispMonop lispLength)
   ]
 
 lispMonop :: (LispOption -> LispOption) -> [LispOption] -> LispOption
@@ -365,6 +373,13 @@ lispCons (Val x) (Val (List [])) = Val $ List [x]
 lispCons (Val x) (Val (List xs)) = Val $ List $ x:xs
 lispCons (Val x) (Val (DottedList xs xlast)) = Val $ DottedList (x : xs) xlast
 lispCons (Val x) (Val y) = Val $ DottedList [x] y
+
+lispLength :: LispOption
+           -> LispOption
+lispLength a@(Err _) = a
+lispLength (Val (List a)) = Val $ Int $ fromIntegral $ length a
+lispLength (Val (String a)) = Val $ Int $ fromIntegral $ length a
+lispLength a = Err $ TypeMismatch "Can't compute the length of: " a
 
 lispOptFloatEq :: LispOption -> LispOption -> Bool
 lispOptFloatEq (Val (Float a)) (Val (Float b)) = floatEq a b
